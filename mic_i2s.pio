@@ -1,0 +1,44 @@
+.program mic_i2s
+.side_set 2
+
+; Samples 4 consecutive data pins per BCLK tick (GPIO6..GPIO9 when base = 6).
+; 4 bits per clock -> 8 clocks fill one 32-bit word -> one 32-clock slot = 4 words.
+
+    set x, 30 side 0b00
+
+bitloop_left:
+    in pins, 4 side 0b01
+    jmp x-- bitloop_left side 0b00
+    in pins, 4 side 0b01
+
+    set x, 30 side 0b10
+
+bitloop_right:
+    in pins, 4 side 0b11
+    jmp x-- bitloop_right side 0b10
+    in pins, 4 side 0b11
+
+% c-sdk {
+
+static inline void mic_i2s_program_init(PIO pio, uint sm, uint offset, uint data_pin, uint clock_pin) {
+
+    pio_sm_config pio_cfg = mic_i2s_program_get_default_config(offset);
+    sm_config_set_clkdiv(&pio_cfg, 24.4f);              // 150 MHz / 24.4 / 2 / 64 = 48 kHz
+    sm_config_set_in_pins(&pio_cfg, data_pin);          // base pin = GPIO6 (lowest of the 4)
+    sm_config_set_sideset_pins(&pio_cfg, clock_pin);
+
+    sm_config_set_in_shift(&pio_cfg, false, true, 32);  // shift left, autopush at 32 bits
+
+    for (uint i = 0; i < 4; i++) {
+        pio_gpio_init(pio, data_pin + i);               // GPIO6, 7, 8, 9
+    }
+    pio_gpio_init(pio, clock_pin);                      // BCLK
+    pio_gpio_init(pio, clock_pin + 1);                  // WS
+
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 4, false);   // 4 inputs
+    pio_sm_set_consecutive_pindirs(pio, sm, clock_pin, 2, true);   // BCLK + WS outputs
+
+    pio_sm_init(pio, sm, offset, &pio_cfg);
+}
+
+%}
