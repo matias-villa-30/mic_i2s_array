@@ -16,6 +16,7 @@ add_executable(${PROJECT_NAME}
     src/mic_tdoa.c
     src/parse.c
     src/servo.c
+    src/report.c
 )
 
 # Let #include "mic_tdoa.h" etc. find the headers in include/

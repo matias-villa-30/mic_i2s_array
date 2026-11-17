@@ -29,11 +29,25 @@ _Static_assert(WORDS_PER_FRAME * SAMPLES * 2 <= RING_WORDS,
 
 #define MIN_CONF      0.5f
 
-i2s_sample_t      samples[SAMPLES];   // decoded 24-bit samples, one struct per frame
-centered_sample_t center[SAMPLES];    // same samples with the DC offset removed
+typedef struct __attribute__((aligned(32768))){
+    uint32_t            ring[RING_WORDS];   // DMA target
+    i2s_sample_t        samples[SAMPLES];   // Decoded 24-bit i2s samples 
+    centered_sample_t   center[SAMPLES];    // DC offset removed 
+    int                 dma_channel;        // DIRECT MEMORY ACCESS channel 
+} mic_ctx;
+
 // Split one slot (4 words, 8 nibbles each) into one raw 32-bit word per mic.
 // Each nibble holds one bit per pin: bit (pin - DATA_BASE) belongs to that pin.
 void deinterleave3(const uint32_t w[WORDS_PER_SLOT], uint32_t m[NUM_MICS]);
-int32_t peak_to_peak(const i2s_sample_t *s, int mic);
+
+// Peak to peak amplitudes (maximum wave amplitude minus minimum wave amplitude) of one mic over measure window.
+// Loudness measure: compared against TDOA_GATE to skip quiet windows.
+int32_t peak_to_peak(const mic_ctx *ctx, int mic);
+
+// Copy and decode sample frames 
+void snapshot(mic_ctx *ctx);
+
+// True if every mic peak to peak level is at the same level or above TDOA_GATE
+bool window_is_loud(const mic_ctx *ctx);
 
 #endif
